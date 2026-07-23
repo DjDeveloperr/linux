@@ -953,6 +953,40 @@ static int atcphy_pipehandler_unlock(struct apple_atcphy *atcphy)
 	return ret;
 }
 
+/*
+ * Make sure the PIPE interface can report "PHY ready" to the DWC3 MAC.
+ *
+ * macOS presents a permanently-ready dummy PIPE PHY to the MAC (see
+ * atcphy_dwc3_reset_deassert()) and then gates the rest of its controller
+ * reset on the PIPE actually being ready. Its fast path for that is exactly
+ * the check below: if the PIPE data mux is parked on the dummy PHY the pipe is
+ * ready by construction. Only when a real PHY is selected does macOS fall back
+ * to polling the AUSBC config block, which this driver does not map.
+ *
+ * Returns 0 if the PIPE is (or will be) ready, -EIO if the mux is in a state
+ * this driver cannot vouch for. Releasing the MAC against an unknown PIPE is
+ * what leaves USBCMD.HCRST spinning forever, so refuse instead.
+ */
+static int atcphy_pipehandler_ready(struct apple_atcphy *atcphy)
+{
+	u32 reg = readl(atcphy->regs.pipehandler + PIPEHANDLER_MUX_CTRL);
+
+	lockdep_assert_held(&atcphy->lock);
+
+	switch (FIELD_GET(PIPEHANDLER_MUX_CTRL_DATA, reg)) {
+	case PIPEHANDLER_MUX_CTRL_DATA_DUMMY:
+		return 0;
+	case PIPEHANDLER_MUX_CTRL_DATA_USB3:
+	case PIPEHANDLER_MUX_CTRL_DATA_USB4:
+		if (atcphy->pipehandler_up)
+			return 0;
+		break;
+	}
+
+	dev_err(atcphy->dev, "PIPE not ready for dwc3 (MUX_CTRL 0x%08x)\n", reg);
+	return -EIO;
+}
+
 static int atcphy_pipehandler_check(struct apple_atcphy *atcphy)
 {
 	int ret;
@@ -1985,6 +2019,12 @@ static void _atcphy_dwc3_reset_assert(struct apple_atcphy *atcphy)
 	clear32(atcphy->regs.pipehandler + PIPEHANDLER_AON_GEN, PIPEHANDLER_AON_GEN_DWC3_RESET_N);
 	set32(atcphy->regs.pipehandler + PIPEHANDLER_AON_GEN,
 	      PIPEHANDLER_AON_GEN_DWC3_FORCE_CLAMP_EN);
+
+	/*
+	 * PIPEHANDLER_DUMMY_PHY_EN is deliberately left alone here: macOS also
+	 * never clears it once set, and the pipehandler reconfiguration done by
+	 * the caller only touches NATIVE_POWER_DOWN/NATIVE_RESET.
+	 */
 }
 
 static int atcphy_dwc3_reset_assert(struct reset_controller_dev *rcdev, unsigned long id)
@@ -2012,8 +2052,26 @@ static int atcphy_dwc3_reset_assert(struct reset_controller_dev *rcdev, unsigned
 static int atcphy_dwc3_reset_deassert(struct reset_controller_dev *rcdev, unsigned long id)
 {
 	struct apple_atcphy *atcphy = container_of(rcdev, struct apple_atcphy, rcdev);
+	int ret;
 
 	guard(mutex)(&atcphy->lock);
+
+	/*
+	 * Present a ready PIPE PHY to the DWC3 MAC before releasing it.
+	 *
+	 * macOS sets DUMMY_PHY_READY on every controller reset, before it
+	 * touches the DWC3 globals and before it re-applies the host tunables,
+	 * and never clears it again: the USB3 bring-up path only masks
+	 * NATIVE_POWER_DOWN/NATIVE_RESET in the same register. Without it the
+	 * MAC can come out of reset against a PIPE that never reports ready,
+	 * which is indistinguishable from a wedged core.
+	 */
+	set32(atcphy->regs.pipehandler + PIPEHANDLER_NONSELECTED_OVERRIDE,
+	      PIPEHANDLER_DUMMY_PHY_EN);
+
+	ret = atcphy_pipehandler_ready(atcphy);
+	if (ret)
+		return ret;
 
 	clear32(atcphy->regs.pipehandler + PIPEHANDLER_AON_GEN,
 		PIPEHANDLER_AON_GEN_DWC3_FORCE_CLAMP_EN);
