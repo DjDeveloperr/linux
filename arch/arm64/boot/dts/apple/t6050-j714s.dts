@@ -1,0 +1,158 @@
+// SPDX-License-Identifier: GPL-2.0+ OR MIT
+/*
+ * Apple MacBook Pro (14-inch, M5 Pro, 2025) — Mac17,9 / J714s
+ *
+ * target-type: J714s (T6050 "M5 Pro")
+ *
+ * Descriptive first-step board DTS. Only the keyboard-backlight path is
+ * enable-ready; every other board peripheral is described but left disabled
+ * pending a driver + live validation (see T6050_J714S_DTS.NOTES.md). All
+ * addresses/IRQs are grounded in device-tree-j714s-20260720.bin; see the
+ * interrupt hazard banner in t6050.dtsi.
+ *
+ * Copyright The Asahi Linux Contributors
+ */
+
+/dts-v1/;
+
+#include <dt-bindings/leds/common.h>
+
+#include "t6050.dtsi"
+
+/ {
+	compatible = "apple,j714s", "apple,t6050", "apple,arm-platform";
+	model = "Apple MacBook Pro (14-inch, M5 Pro, 2025)";
+	chassis-type = "laptop";
+
+	aliases {
+		serial0 = &serial0;
+	};
+
+	chosen {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		stdout-path = "serial0";
+
+		framebuffer0: framebuffer@0 {
+			compatible = "apple,simple-framebuffer", "simple-framebuffer";
+			reg = <0 0 0 0>; /* To be filled by loader */
+			/* Format properties will be added by loader */
+			status = "disabled";
+			/* power-domains: pmgr disp front-end (TODO once ps_* exist) */
+		};
+	};
+
+	memory@10000000000 {
+		device_type = "memory";
+		reg = <0x100 0 0x2 0>; /* To be filled by loader */
+	};
+
+	/*
+	 * Keyboard backlight — the one enable-ready path.
+	 * Same FPWM family Asahi already supports (apple,s5l-fpwm + pwm-leds).
+	 * Period: matches Asahi laptop convention (40000 ns); ADT panel-side
+	 * capture reports 25000 Hz — confirm on hardware.
+	 * Remaining open item before full function: the fpwm0 power-domain
+	 * (pmgr dev "FPWM0" @off 0x2a8) is documented in t6050.dtsi but not yet
+	 * wired (t6050-pmgr.dtsi not generated).
+	 */
+	led-controller {
+		compatible = "pwm-leds";
+		led-0 {
+			pwms = <&fpwm0 0 40000>;
+			label = "kbd_backlight";
+			function = LED_FUNCTION_KBD_BACKLIGHT;
+			color = <LED_COLOR_ID_WHITE>;
+			max-brightness = <255>;
+			default-state = "off";
+		};
+	};
+};
+
+/* Keyboard backlight PWM: the only node brought to "okay" on this board. */
+&fpwm0 {
+	status = "okay";
+};
+
+/*
+ * ==== Audio codecs (disabled) ====
+ * 6x TI SN012776/TAS2764 amps + 1x Cirrus CS42L84 jack, addresses from ADT.
+ * Reset GPIO (speaker SDZ) and per-codec IRQ GPIO indices are placeholders
+ * pending pinctrl decode; kept disabled. No amp unmute without speakersafetyd.
+ */
+&i2c1 {
+	/* status left "disabled"; enable with the audio stack */
+
+	speaker_left_woof1: codec@38 {
+		compatible = "ti,sn012776", "ti,tas2764";
+		reg = <0x38>;
+		#sound-dai-cells = <0>;
+		sound-name-prefix = "Left Woofer 1";
+		status = "disabled";
+	};
+	speaker_left_woof2: codec@39 {
+		compatible = "ti,sn012776", "ti,tas2764";
+		reg = <0x39>;
+		#sound-dai-cells = <0>;
+		sound-name-prefix = "Left Woofer 2";
+		status = "disabled";
+	};
+	speaker_left_tweet: codec@3a {
+		compatible = "ti,sn012776", "ti,tas2764";
+		reg = <0x3a>;
+		#sound-dai-cells = <0>;
+		sound-name-prefix = "Left Tweeter";
+		status = "disabled";
+	};
+};
+
+&i2c2 {
+	jack_codec: codec@4b {
+		compatible = "cirrus,cs42l84";
+		reg = <0x4b>;
+		#sound-dai-cells = <0>;
+		sound-name-prefix = "Jack";
+		status = "disabled";
+	};
+};
+
+&i2c3 {
+	speaker_right_woof1: codec@3b {
+		compatible = "ti,sn012776", "ti,tas2764";
+		reg = <0x3b>;
+		#sound-dai-cells = <0>;
+		sound-name-prefix = "Right Woofer 1";
+		status = "disabled";
+	};
+	speaker_right_woof2: codec@3c {
+		compatible = "ti,sn012776", "ti,tas2764";
+		reg = <0x3c>;
+		#sound-dai-cells = <0>;
+		sound-name-prefix = "Right Woofer 2";
+		status = "disabled";
+	};
+	speaker_right_tweet: codec@3d {
+		compatible = "ti,sn012776", "ti,tas2764";
+		reg = <0x3d>;
+		#sound-dai-cells = <0>;
+		sound-name-prefix = "Right Tweeter";
+		status = "disabled";
+	};
+};
+
+/*
+ * ==== Touch ID (disabled) ====
+ * mesa biosensor on spi2; ADT irq 138 via pinctrl phandle 459 (mesa_pwr /
+ * spi_cs0 GPIOs). Passive-only, exclave-gated. GPIO handles TODO.
+ */
+&spi2 {
+	mesa: biosensor@0 {
+		compatible = "apple,mesa", "biosensor,mesa";
+		reg = <0>;
+		spi-max-frequency = <8000000>;
+		/* interrupts-extended = <&pinctrl_ap 138 ...> — TODO decode pin 459 */
+		status = "disabled";
+	};
+};

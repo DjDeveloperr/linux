@@ -1,0 +1,1238 @@
+// SPDX-License-Identifier: GPL-2.0+ OR MIT
+/*
+ * Apple T6050 "M5 Pro" SoC
+ *
+ * Descriptive (first-step, upstream-style) devicetree for the T6050 die as
+ * used in Mac17,9 / J714s (MacBook Pro 14", M5 Pro).
+ *
+ * ALL data below is derived from the captured Apple Device Tree
+ *   research/device-tree-j714s-20260720.bin
+ *   sha256 2adafc0361c162ef5683b78c290f75e952ec26e226ad571dff08939149cf0754
+ * CPU-physical addresses were obtained by translating each ADT node `reg`
+ * through the `/arm-io` `ranges` window (identity above 0x8_0000_0000; the
+ * primary peripheral window maps child 0x0..0x3c000_0000 -> parent
+ * 0x2_0000_0000, i.e. CPU-phys = ADT-reg + 0x2_0000_0000). Window parse was
+ * cross-validated: pmgr reg[14] == 0x2_8836_0000 exactly matches the audit's
+ * documented "pmgr reg[14]" aperture (J714S_DT_AUDIT_2026-07-22.md).
+ *
+ * !!! INTERRUPT HAZARD (J714S_DT_AUDIT U4) !!!
+ * Every `interrupts` value in this file is the RAW ADT interrupt number, NOT a
+ * verified Linux AIC IRQ. This was PROVEN necessary: DockChannel ADT irq 360
+ * is delivered on measured AIC irq 702 on live J714s. The ADT->AIC mapping is
+ * not derivable from a single data point, so every value carries a
+ * "TODO verify AIC (U4)" marker and MUST be confirmed against a live AIC read
+ * before the owning node is enabled. Do not treat these as AIC numbers.
+ *
+ * PMGR: the apple,pmgr-pwrstate (ps_*) power-domain tree is NOT emitted here.
+ * The audit warns the generated 179-node table is unvalidated; rather than ship
+ * it, each consumer records its ADT power-gate device (name + pmgr register
+ * offset) in a comment for later, per-consumer generation of t6050-pmgr.dtsi.
+ * Consequently `power-domains` phandles are intentionally omitted (would be
+ * unresolved). Providers are described so the hardware is present.
+ *
+ * Copyright The Asahi Linux Contributors
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/apple-aic.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/pinctrl/apple.h>
+#include <dt-bindings/phy/phy.h>
+#include <dt-bindings/spmi/spmi.h>
+
+/ {
+	#address-cells = <2>;
+	#size-cells = <2>;
+
+	cpus {
+		#address-cells = <2>;
+		#size-cells = <0>;
+
+		/*
+		 * ADT topology (die 0): 3 clusters of 6.
+		 *   cluster0 (reg 0x000..0x005) apple,sawtooth
+		 *   cluster1 (reg 0x100..0x105) apple,sawtooth
+		 *   cluster2 (reg 0x200..0x205) apple,everest
+		 * Core compatibles + MPIDR reg are taken verbatim from the ADT.
+		 * SMP is out of scope for this descriptive pass (only the boot CPU
+		 * is live-proven; see audit U1/U2). No OPP/DVFS tables are
+		 * fabricated here (TODO: derive from ADT voltage-states/perf).
+		 */
+		cpu-map {
+			cluster0 {
+				core0 { cpu = <&cpu_00>; };
+				core1 { cpu = <&cpu_01>; };
+				core2 { cpu = <&cpu_02>; };
+				core3 { cpu = <&cpu_03>; };
+				core4 { cpu = <&cpu_04>; };
+				core5 { cpu = <&cpu_05>; };
+			};
+			cluster1 {
+				core0 { cpu = <&cpu_10>; };
+				core1 { cpu = <&cpu_11>; };
+				core2 { cpu = <&cpu_12>; };
+				core3 { cpu = <&cpu_13>; };
+				core4 { cpu = <&cpu_14>; };
+				core5 { cpu = <&cpu_15>; };
+			};
+			cluster2 {
+				core0 { cpu = <&cpu_20>; };
+				core1 { cpu = <&cpu_21>; };
+				core2 { cpu = <&cpu_22>; };
+				core3 { cpu = <&cpu_23>; };
+				core4 { cpu = <&cpu_24>; };
+				core5 { cpu = <&cpu_25>; };
+			};
+		};
+
+		cpu_00: cpu@0 {
+			compatible = "apple,sawtooth";
+			device_type = "cpu";
+			reg = <0x0 0x0>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0 0>; /* to be filled by loader */
+			next-level-cache = <&l2_cache_0>;
+		};
+		cpu_01: cpu@1 {
+			compatible = "apple,sawtooth";
+			device_type = "cpu";
+			reg = <0x0 0x1>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0 0>;
+			next-level-cache = <&l2_cache_0>;
+		};
+		cpu_02: cpu@2 {
+			compatible = "apple,sawtooth";
+			device_type = "cpu";
+			reg = <0x0 0x2>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0 0>;
+			next-level-cache = <&l2_cache_0>;
+		};
+		cpu_03: cpu@3 {
+			compatible = "apple,sawtooth";
+			device_type = "cpu";
+			reg = <0x0 0x3>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0 0>;
+			next-level-cache = <&l2_cache_0>;
+		};
+		cpu_04: cpu@4 {
+			compatible = "apple,sawtooth";
+			device_type = "cpu";
+			reg = <0x0 0x4>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0 0>;
+			next-level-cache = <&l2_cache_0>;
+		};
+		cpu_05: cpu@5 {
+			compatible = "apple,sawtooth";
+			device_type = "cpu";
+			reg = <0x0 0x5>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0 0>;
+			next-level-cache = <&l2_cache_0>;
+		};
+
+		cpu_10: cpu@100 {
+			compatible = "apple,sawtooth";
+			device_type = "cpu";
+			reg = <0x0 0x100>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0 0>;
+			next-level-cache = <&l2_cache_1>;
+		};
+		cpu_11: cpu@101 {
+			compatible = "apple,sawtooth";
+			device_type = "cpu";
+			reg = <0x0 0x101>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0 0>;
+			next-level-cache = <&l2_cache_1>;
+		};
+		cpu_12: cpu@102 {
+			compatible = "apple,sawtooth";
+			device_type = "cpu";
+			reg = <0x0 0x102>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0 0>;
+			next-level-cache = <&l2_cache_1>;
+		};
+		cpu_13: cpu@103 {
+			compatible = "apple,sawtooth";
+			device_type = "cpu";
+			reg = <0x0 0x103>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0 0>;
+			next-level-cache = <&l2_cache_1>;
+		};
+		cpu_14: cpu@104 {
+			compatible = "apple,sawtooth";
+			device_type = "cpu";
+			reg = <0x0 0x104>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0 0>;
+			next-level-cache = <&l2_cache_1>;
+		};
+		cpu_15: cpu@105 {
+			compatible = "apple,sawtooth";
+			device_type = "cpu";
+			reg = <0x0 0x105>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0 0>;
+			next-level-cache = <&l2_cache_1>;
+		};
+
+		cpu_20: cpu@200 {
+			compatible = "apple,everest";
+			device_type = "cpu";
+			reg = <0x0 0x200>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0 0>;
+			next-level-cache = <&l2_cache_2>;
+		};
+		cpu_21: cpu@201 {
+			compatible = "apple,everest";
+			device_type = "cpu";
+			reg = <0x0 0x201>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0 0>;
+			next-level-cache = <&l2_cache_2>;
+		};
+		cpu_22: cpu@202 {
+			compatible = "apple,everest";
+			device_type = "cpu";
+			reg = <0x0 0x202>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0 0>;
+			next-level-cache = <&l2_cache_2>;
+		};
+		cpu_23: cpu@203 {
+			compatible = "apple,everest";
+			device_type = "cpu";
+			reg = <0x0 0x203>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0 0>;
+			next-level-cache = <&l2_cache_2>;
+		};
+		cpu_24: cpu@204 {
+			compatible = "apple,everest";
+			device_type = "cpu";
+			reg = <0x0 0x204>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0 0>;
+			next-level-cache = <&l2_cache_2>;
+		};
+		cpu_25: cpu@205 {
+			compatible = "apple,everest";
+			device_type = "cpu";
+			reg = <0x0 0x205>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0 0>;
+			next-level-cache = <&l2_cache_2>;
+		};
+
+		/* Cache sizes TODO: not yet decoded from ADT acc-impl. */
+		l2_cache_0: l2-cache-0 {
+			compatible = "cache";
+			cache-level = <2>;
+			cache-unified;
+		};
+		l2_cache_1: l2-cache-1 {
+			compatible = "cache";
+			cache-level = <2>;
+			cache-unified;
+		};
+		l2_cache_2: l2-cache-2 {
+			compatible = "cache";
+			cache-level = <2>;
+			cache-unified;
+		};
+	};
+
+	timer {
+		compatible = "arm,armv8-timer";
+		interrupt-parent = <&aic>;
+		interrupt-names = "phys", "virt", "hyp-phys", "hyp-virt";
+		interrupts = <AIC_FIQ AIC_TMR_GUEST_PHYS IRQ_TYPE_LEVEL_HIGH>,
+			     <AIC_FIQ AIC_TMR_GUEST_VIRT IRQ_TYPE_LEVEL_HIGH>,
+			     <AIC_FIQ AIC_TMR_HV_PHYS IRQ_TYPE_LEVEL_HIGH>,
+			     <AIC_FIQ AIC_TMR_HV_VIRT IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	clkref: clock-ref {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <24000000>;
+		clock-output-names = "clkref";
+	};
+
+	clk_200m: clock-200m {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <200000000>;
+		clock-output-names = "clk_200m";
+	};
+
+	/* Fabulated NCO input clock; true clock tree unknown (as on t60xx). */
+	nco_clkref: clock-ref-nco {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-output-names = "nco_ref";
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+	};
+
+	soc: soc {
+		compatible = "simple-bus";
+		#address-cells = <2>;
+		#size-cells = <2>;
+
+		ranges;
+		nonposted-mmio;
+		/* Required to get >32-bit DMA via DARTs */
+		dma-ranges = <0 0 0 0 0xffffffff 0xffffc000>;
+
+		/*
+		 * ==== Interrupt controller (active) ====
+		 * ADT /arm-io/aic "aic,3"; core window byte-verified.
+		 * event register follows the AIC3 convention (core + 0x40000,
+		 * as on t8122/t6030). Affinities node TODO (m1n1 warns but boots).
+		 */
+		aic: interrupt-controller@280400000 {
+			compatible = "apple,t6050-aic3", "apple,t8122-aic3";
+			#interrupt-cells = <3>;
+			interrupt-controller;
+			reg = <0x2 0x80400000 0x0 0x1cc000>,	/* core (ADT) */
+			      <0x2 0x80440000 0x0 0x4>;		/* event (AIC3 conv.) */
+			reg-names = "core", "event";
+			/* power-domains: pmgr dev "AIC" (always-on) */
+		};
+
+		/*
+		 * ==== PMGR providers (active) ====
+		 * Primary aperture byte-verified via reg[14] cross-check.
+		 * pwrstate (ps_*) children intentionally not emitted; see banner.
+		 */
+		pmgr: power-management@280600000 {
+			compatible = "apple,t6050-pmgr", "apple,t8103-pmgr", "syscon", "simple-mfd";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			reg = <0x2 0x80600000 0x0 0x1fc000>;
+			/* pwrstate children TODO -> generated t6050-pmgr.dtsi */
+		};
+
+		pmgr_gfx: power-management@286000000 {
+			compatible = "apple,t6050-pmgr", "apple,t8103-pmgr", "syscon", "simple-mfd";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			reg = <0x2 0x86000000 0x0 0x1000000>;
+		};
+
+		pmgr_mini: power-management@280200000 {
+			compatible = "apple,t6050-pmgr", "apple,t8103-pmgr", "syscon", "simple-mfd";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			reg = <0x2 0x80200000 0x0 0x4000>;
+		};
+
+		nco: clock-controller@280e00000 {
+			/* ADT: nco lives inside the pmgr aperture; base TODO-verify */
+			compatible = "apple,t6050-nco", "apple,t8103-nco";
+			reg = <0x2 0x80e00000 0x0 0x14000>;
+			clocks = <&nco_clkref>;
+			#clock-cells = <1>;
+			status = "disabled";
+		};
+
+		/*
+		 * ==== Pin controllers / GPIO (active) ====
+		 * ADT gpio,t8101. npins byte-read from ADT #gpio-pins.
+		 */
+		pinctrl_ap: pinctrl@29c000000 {
+			compatible = "apple,t6050-pinctrl", "apple,t8103-pinctrl";
+			reg = <0x2 0x9c000000 0x0 0x44000>;
+			interrupt-parent = <&aic>;
+			/* ADT irq 486..492 — TODO verify AIC (U4) */
+			interrupts = <AIC_IRQ 486 IRQ_TYPE_LEVEL_HIGH>,
+				     <AIC_IRQ 487 IRQ_TYPE_LEVEL_HIGH>,
+				     <AIC_IRQ 488 IRQ_TYPE_LEVEL_HIGH>,
+				     <AIC_IRQ 489 IRQ_TYPE_LEVEL_HIGH>,
+				     <AIC_IRQ 490 IRQ_TYPE_LEVEL_HIGH>,
+				     <AIC_IRQ 491 IRQ_TYPE_LEVEL_HIGH>,
+				     <AIC_IRQ 492 IRQ_TYPE_LEVEL_HIGH>;
+			/* power-domains: pmgr dev "GPIO" */
+			gpio-controller;
+			#gpio-cells = <2>;
+			gpio-ranges = <&pinctrl_ap 0 0 221>;
+			apple,npins = <221>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+
+		pinctrl_aop: pinctrl@290824000 {
+			compatible = "apple,t6050-pinctrl", "apple,t8103-pinctrl";
+			reg = <0x2 0x90824000 0x0 0x4000>;
+			interrupt-parent = <&aic>;
+			/* ADT irq 568..574 — TODO verify AIC (U4) */
+			interrupts = <AIC_IRQ 568 IRQ_TYPE_LEVEL_HIGH>,
+				     <AIC_IRQ 569 IRQ_TYPE_LEVEL_HIGH>,
+				     <AIC_IRQ 570 IRQ_TYPE_LEVEL_HIGH>,
+				     <AIC_IRQ 571 IRQ_TYPE_LEVEL_HIGH>,
+				     <AIC_IRQ 572 IRQ_TYPE_LEVEL_HIGH>,
+				     <AIC_IRQ 573 IRQ_TYPE_LEVEL_HIGH>,
+				     <AIC_IRQ 574 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clkref>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			gpio-ranges = <&pinctrl_aop 0 0 85>;
+			apple,npins = <85>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			status = "disabled";
+		};
+
+		pinctrl_nub: pinctrl@2881e4000 {
+			compatible = "apple,t6050-pinctrl", "apple,t8103-pinctrl";
+			reg = <0x2 0x881e4000 0x0 0x4000>;
+			interrupt-parent = <&aic>;
+			/* ADT irq 706,708,710,712,714,716,718 — TODO verify AIC (U4) */
+			interrupts = <AIC_IRQ 706 IRQ_TYPE_LEVEL_HIGH>,
+				     <AIC_IRQ 708 IRQ_TYPE_LEVEL_HIGH>,
+				     <AIC_IRQ 710 IRQ_TYPE_LEVEL_HIGH>,
+				     <AIC_IRQ 712 IRQ_TYPE_LEVEL_HIGH>,
+				     <AIC_IRQ 714 IRQ_TYPE_LEVEL_HIGH>,
+				     <AIC_IRQ 716 IRQ_TYPE_LEVEL_HIGH>,
+				     <AIC_IRQ 718 IRQ_TYPE_LEVEL_HIGH>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			gpio-ranges = <&pinctrl_nub 0 0 61>;
+			apple,npins = <61>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+
+		/* ==== Watchdog (active) — address audit-confirmed 0x2_8836c000 ==== */
+		wdt: watchdog@28836c000 {
+			compatible = "apple,t6050-wdt", "apple,t8103-wdt";
+			reg = <0x2 0x8836c000 0x0 0x4000>;
+			clocks = <&clkref>;
+			interrupt-parent = <&aic>;
+			/* ADT irq 721 — TODO verify AIC (U4) */
+			interrupts = <AIC_IRQ 721 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
+		/*
+		 * ==== I2C (disabled) ====
+		 * ADT i2c,t8101. clock-gate device names in comments.
+		 */
+		i2c0: i2c@505010000 {
+			compatible = "apple,t6050-i2c", "apple,t8103-i2c";
+			reg = <0x5 0x05010000 0x0 0x4000>;
+			clocks = <&clkref>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1375 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#address-cells = <1>;
+			#size-cells = <0>;
+			/* power-domains: pmgr dev "I2C0" @off 0x2c0 */
+			status = "disabled";
+		};
+		i2c1: i2c@505014000 {
+			compatible = "apple,t6050-i2c", "apple,t8103-i2c";
+			reg = <0x5 0x05014000 0x0 0x4000>;
+			clocks = <&clkref>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1376 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#address-cells = <1>;
+			#size-cells = <0>;
+			/* power-domains: pmgr dev "I2C1" @off 0x2c8 */
+			status = "disabled";
+		};
+		i2c2: i2c@505018000 {
+			compatible = "apple,t6050-i2c", "apple,t8103-i2c";
+			reg = <0x5 0x05018000 0x0 0x4000>;
+			clocks = <&clkref>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1377 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#address-cells = <1>;
+			#size-cells = <0>;
+			/* power-domains: pmgr dev "I2C2" @off 0x2d0 */
+			status = "disabled";
+		};
+		i2c3: i2c@50501c000 {
+			compatible = "apple,t6050-i2c", "apple,t8103-i2c";
+			reg = <0x5 0x0501c000 0x0 0x4000>;
+			clocks = <&clkref>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1378 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#address-cells = <1>;
+			#size-cells = <0>;
+			/* power-domains: pmgr dev "I2C3" @off 0x2d8 */
+			status = "disabled";
+		};
+		i2c4: i2c@505020000 {
+			compatible = "apple,t6050-i2c", "apple,t8103-i2c";
+			reg = <0x5 0x05020000 0x0 0x4000>;
+			clocks = <&clkref>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1379 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#address-cells = <1>;
+			#size-cells = <0>;
+			/* power-domains: pmgr dev "I2C4" @off 0x2e0 */
+			status = "disabled";
+		};
+		i2c5: i2c@505024000 {
+			compatible = "apple,t6050-i2c", "apple,t8103-i2c";
+			reg = <0x5 0x05024000 0x0 0x4000>;
+			clocks = <&clkref>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1380 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#address-cells = <1>;
+			#size-cells = <0>;
+			/* power-domains: pmgr dev "I2C5" @off 0x2e8 */
+			status = "disabled";
+		};
+		i2c6: i2c@505028000 {
+			compatible = "apple,t6050-i2c", "apple,t8103-i2c";
+			reg = <0x5 0x05028000 0x0 0x4000>;
+			clocks = <&clkref>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1381 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#address-cells = <1>;
+			#size-cells = <0>;
+			/* power-domains: pmgr dev "I2C6" @off 0x2f0 */
+			status = "disabled";
+		};
+		i2c7: i2c@50502c000 {
+			compatible = "apple,t6050-i2c", "apple,t8103-i2c";
+			reg = <0x5 0x0502c000 0x0 0x4000>;
+			clocks = <&clkref>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1382 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#address-cells = <1>;
+			#size-cells = <0>;
+			/* power-domains: pmgr dev "I2C7" @off 0x2f8 */
+			status = "disabled";
+		};
+		i2c8: i2c@505030000 {
+			compatible = "apple,t6050-i2c", "apple,t8103-i2c";
+			reg = <0x5 0x05030000 0x0 0x4000>;
+			clocks = <&clkref>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1383 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#address-cells = <1>;
+			#size-cells = <0>;
+			/* power-domains: pmgr dev "I2C8" @off 0x300 */
+			status = "disabled";
+		};
+
+		/*
+		 * ==== SPI (disabled) ====
+		 * spi2 hosts Touch ID (mesa). spi4 hosts the TCON (dp855).
+		 */
+		spi2: spi@505108000 {
+			compatible = "apple,t6050-spi", "apple,t8103-spi";
+			reg = <0x5 0x05108000 0x0 0x4000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1369 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#address-cells = <1>;
+			#size-cells = <0>;
+			clocks = <&clk_200m>;
+			/* power-domains: pmgr dev "SPI2" @off 0x330 */
+			status = "disabled";
+		};
+		spi4: spi@505110000 {
+			compatible = "apple,t6050-spi", "apple,t8103-spi";
+			reg = <0x5 0x05110000 0x0 0x4000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1371 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#address-cells = <1>;
+			#size-cells = <0>;
+			clocks = <&clk_200m>;
+			/* power-domains: pmgr dev "SPI4" */
+			status = "disabled";
+		};
+
+		/*
+		 * ==== Keyboard-backlight PWM (disabled here; enabled per-board) ====
+		 * ADT fpwm,s5l8920x. This is the enable-ready node (see board dts).
+		 */
+		fpwm0: pwm@505040000 {
+			compatible = "apple,t6050-fpwm", "apple,s5l-fpwm";
+			reg = <0x5 0x05040000 0x0 0x4000>;
+			clocks = <&clkref>;
+			#pwm-cells = <2>;
+			/* power-domains: pmgr dev "FPWM0" @off 0x2a8 (ADT clock-gate 187) */
+			/* FPWM has no data IRQ in the Asahi binding; ADT irq 1384 unused */
+			status = "disabled";
+		};
+
+		/* ==== UART0 / serial console (disabled) ==== */
+		serial0: serial@505200000 {
+			compatible = "apple,s5l-uart";
+			reg = <0x5 0x05200000 0x0 0x4000>;
+			reg-io-width = <4>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1359 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			clocks = <&clkref>, <&clkref>;
+			clock-names = "uart", "clk_uart_baud0";
+			/* power-domains: pmgr dev "UART0" @off 0x360 */
+			status = "disabled";
+		};
+
+		/*
+		 * ==== DockChannel UART (disabled) ====
+		 * The one node with a PROVEN-LIVE AIC IRQ: ADT irq 360 is delivered
+		 * on measured AIC irq 702 (audit). AIC value used here is the proven
+		 * 702; do NOT "correct" it to the ADT 360.
+		 */
+		dockchannel_uart: serial@288e28000 {
+			compatible = "apple,t6050-dockchannel-uart", "apple,dockchannel-uart";
+			reg = <0x2 0x88e28000 0x0 0x10004>,
+			      <0x2 0x88e0c000 0x0 0x18>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 702 IRQ_TYPE_LEVEL_HIGH>; /* PROVEN-LIVE AIC (ADT irq was 360) */
+			status = "disabled";
+		};
+
+		/*
+		 * ==== SIO (disabled) ==== ADT iop,ascwrap-v6 + its DART.
+		 */
+		sio_dart: iommu@505060000 {
+			compatible = "apple,t6050-dart", "apple,t8110-dart";
+			reg = <0x5 0x05060000 0x0 0x20000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1387 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#iommu-cells = <1>;
+			/* ADT dart-id 11, sid-count 16; power-domains pmgr dev "SIO_DART" */
+			status = "disabled";
+		};
+		sio: sio@505e00000 {
+			compatible = "apple,t6050-sio", "apple,sio";
+			reg = <0x5 0x05e00000 0x0 0x88000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1392 IRQ_TYPE_LEVEL_HIGH>, /* ADT irq 1392,1391,1394,1393 — TODO verify AIC (U4) */
+				     <AIC_IRQ 1391 IRQ_TYPE_LEVEL_HIGH>,
+				     <AIC_IRQ 1394 IRQ_TYPE_LEVEL_HIGH>,
+				     <AIC_IRQ 1393 IRQ_TYPE_LEVEL_HIGH>;
+			iommus = <&sio_dart 0>;
+			status = "disabled";
+		};
+
+		/*
+		 * ======================================================
+		 *  USB / ATCPHY / ACIO  (all disabled)
+		 * ======================================================
+		 * 3x DWC3 USB (usb-drd,t6050), 4x ATC PHY (atc-phy,t6050),
+		 * 3x ACIO (acio,v2). See NOTES for the ATCPHY window hazard.
+		 */
+		dart_usb0: iommu@2a2f00000 {
+			compatible = "apple,t6050-dart", "apple,t8110-dart";
+			reg = <0x2 0xa2f00000 0x0 0xc000>;	/* ADT reg[0]; +2 aux windows omitted */
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1423 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#iommu-cells = <1>;
+			/* ADT dart-id 14, sid-count 16 */
+			status = "disabled";
+		};
+		usb_drd0: usb@2a2280000 {
+			compatible = "apple,t6050-dwc3", "apple,t8103-dwc3";
+			reg = <0x2 0xa2280000 0x0 0xcd00>,	/* dwc3-core (ADT reg[0] 0x11800 window) */
+			      <0x2 0xa228cd00 0x0 0x3200>;	/* dwc3-apple (t60xx split) */
+			reg-names = "dwc3-core", "dwc3-apple";
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1419 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq 1419..1422 — TODO verify AIC (U4) */
+			dr_mode = "otg";
+			usb-role-switch;
+			role-switch-default-mode = "host";
+			iommus = <&dart_usb0 0>, <&dart_usb0 1>;
+			phys = <&atcphy0 PHY_TYPE_USB2>, <&atcphy0 PHY_TYPE_USB3>;
+			phy-names = "usb2-phy", "usb3-phy";
+			resets = <&atcphy0>;
+			/* power-domains: pmgr dev "ATC0_USB" (ADT clock-gate 261) */
+			status = "disabled";
+		};
+		atcphy0: phy@2a2a90000 {
+			compatible = "apple,t6050-atcphy", "apple,t6040-atcphy";
+			/*
+			 * PARTIAL: ADT provides 44 fine-grained windows. Only the
+			 * ADT-confirmed usb2phy/pipehandler/axi2af windows are
+			 * emitted; the coarse "core"/"lpdptx" map is intentionally
+			 * omitted (the coarse core map SError'd at 0x3_83054000 on
+			 * live hardware — see NOTES). Full core/lpdptx mapping TODO.
+			 */
+			reg = <0x2 0xa2a90000 0x0 0x4000>,	/* usb2phy */
+			      <0x2 0xa2a84000 0x0 0x4000>,	/* pipehandler */
+			      <0x2 0xa0000000 0x0 0x4000>;	/* axi2af */
+			reg-names = "usb2phy", "pipehandler", "axi2af";
+			#phy-cells = <1>;
+			#reset-cells = <0>;
+			orientation-switch;
+			mode-switch;
+			status = "disabled";
+		};
+
+		dart_usb1: iommu@2aaf00000 {
+			compatible = "apple,t6050-dart", "apple,t8110-dart";
+			reg = <0x2 0xaaf00000 0x0 0xc000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1455 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#iommu-cells = <1>;
+			/* ADT dart-id 15, sid-count 16 */
+			status = "disabled";
+		};
+		usb_drd1: usb@2aa280000 {
+			compatible = "apple,t6050-dwc3", "apple,t8103-dwc3";
+			reg = <0x2 0xaa280000 0x0 0xcd00>,
+			      <0x2 0xaa28cd00 0x0 0x3200>;
+			reg-names = "dwc3-core", "dwc3-apple";
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1451 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq 1451..1454 — TODO verify AIC (U4) */
+			dr_mode = "otg";
+			usb-role-switch;
+			role-switch-default-mode = "host";
+			iommus = <&dart_usb1 0>, <&dart_usb1 1>;
+			phys = <&atcphy1 PHY_TYPE_USB2>, <&atcphy1 PHY_TYPE_USB3>;
+			phy-names = "usb2-phy", "usb3-phy";
+			resets = <&atcphy1>;
+			/* power-domains: pmgr dev "ATC1_USB" (ADT clock-gate 264) */
+			status = "disabled";
+		};
+		atcphy1: phy@2aaa90000 {
+			compatible = "apple,t6050-atcphy", "apple,t6040-atcphy";
+			reg = <0x2 0xaaa90000 0x0 0x4000>,	/* usb2phy */
+			      <0x2 0xaaa84000 0x0 0x4000>,	/* pipehandler */
+			      <0x2 0xa8000000 0x0 0x4000>;	/* axi2af */
+			reg-names = "usb2phy", "pipehandler", "axi2af";
+			#phy-cells = <1>;
+			#reset-cells = <0>;
+			orientation-switch;
+			mode-switch;
+			status = "disabled";
+		};
+
+		dart_usb2: iommu@382f00000 {
+			compatible = "apple,t6050-dart", "apple,t8110-dart";
+			reg = <0x3 0x82f00000 0x0 0xc000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1487 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#iommu-cells = <1>;
+			/* ADT dart-id 16, sid-count 16 */
+			status = "disabled";
+		};
+		usb_drd2: usb@382280000 {
+			compatible = "apple,t6050-dwc3", "apple,t8103-dwc3";
+			reg = <0x3 0x82280000 0x0 0xcd00>,
+			      <0x3 0x8228cd00 0x0 0x3200>;
+			reg-names = "dwc3-core", "dwc3-apple";
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1483 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq 1483..1486 — TODO verify AIC (U4) */
+			dr_mode = "otg";
+			usb-role-switch;
+			role-switch-default-mode = "host";
+			iommus = <&dart_usb2 0>, <&dart_usb2 1>;
+			phys = <&atcphy2 PHY_TYPE_USB2>, <&atcphy2 PHY_TYPE_USB3>;
+			phy-names = "usb2-phy", "usb3-phy";
+			resets = <&atcphy2>;
+			/* power-domains: pmgr dev "ATC2_USB" (ADT clock-gate 267) */
+			status = "disabled";
+		};
+		atcphy2: phy@382a90000 {
+			compatible = "apple,t6050-atcphy", "apple,t6040-atcphy";
+			reg = <0x3 0x82a90000 0x0 0x4000>,	/* usb2phy */
+			      <0x3 0x82a84000 0x0 0x4000>,	/* pipehandler */
+			      <0x3 0x80000000 0x0 0x4000>;	/* axi2af */
+			reg-names = "usb2phy", "pipehandler", "axi2af";
+			#phy-cells = <1>;
+			#reset-cells = <0>;
+			orientation-switch;
+			mode-switch;
+			status = "disabled";
+		};
+
+		/* 4th ATC PHY exists but has no paired usb-drd in the ADT. */
+		atcphy3: phy@38aa90000 {
+			compatible = "apple,t6050-atcphy", "apple,t6040-atcphy";
+			reg = <0x3 0x8aa90000 0x0 0x4000>,	/* usb2phy */
+			      <0x3 0x8aa84000 0x0 0x4000>,	/* pipehandler */
+			      <0x3 0x88000000 0x0 0x4000>;	/* axi2af */
+			reg-names = "usb2phy", "pipehandler", "axi2af";
+			#phy-cells = <1>;
+			#reset-cells = <0>;
+			orientation-switch;
+			mode-switch;
+			status = "disabled";
+		};
+
+		/* ---- ACIO (Thunderbolt/USB4 CIO) ---- */
+		dart_acio0: iommu@2a1a80000 {
+			compatible = "apple,t6050-dart", "apple,t8110-dart";
+			reg = <0x2 0xa1a80000 0x0 0xc000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1606 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#iommu-cells = <1>;
+			/* ADT dart-id 5, sid-count 28 */
+			status = "disabled";
+		};
+		acio0: acio@2a1f00000 {
+			compatible = "apple,t6050-acio", "apple,acio-v2";
+			reg = <0x2 0xa1f00000 0x0 0x100000>;	/* ADT reg[0]; +5 aux windows omitted */
+			interrupt-parent = <&aic>;
+			/* ADT irq 1579..1602,1608 (25 lines) — TODO verify AIC (U4) */
+			interrupts = <AIC_IRQ 1591 IRQ_TYPE_LEVEL_HIGH>;
+			iommus = <&dart_acio0 0>;
+			/* power-domains: pmgr devs ATC0_CIO* (ADT power-gates 95,70,93,94) */
+			status = "disabled";
+		};
+		dart_acio1: iommu@2a9a80000 {
+			compatible = "apple,t6050-dart", "apple,t8110-dart";
+			reg = <0x2 0xa9a80000 0x0 0xc000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1638 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#iommu-cells = <1>;
+			/* ADT dart-id 7, sid-count 28 */
+			status = "disabled";
+		};
+		acio1: acio@2a9f00000 {
+			compatible = "apple,t6050-acio", "apple,acio-v2";
+			reg = <0x2 0xa9f00000 0x0 0x100000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1623 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq 1611..1634,1640 — TODO verify AIC (U4) */
+			iommus = <&dart_acio1 0>;
+			status = "disabled";
+		};
+		dart_acio2: iommu@381a80000 {
+			compatible = "apple,t6050-dart", "apple,t8110-dart";
+			reg = <0x3 0x81a80000 0x0 0xc000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1670 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#iommu-cells = <1>;
+			/* ADT dart-id 9, sid-count 28 */
+			status = "disabled";
+		};
+		acio2: acio@381f00000 {
+			compatible = "apple,t6050-acio", "apple,acio-v2";
+			reg = <0x3 0x81f00000 0x0 0x100000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1655 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq 1643..1666,1672 — TODO verify AIC (U4) */
+			iommus = <&dart_acio2 0>;
+			status = "disabled";
+		};
+
+		/* ---- ACIO tunnelled PCIe (apciec) ---- */
+		dart_apciec0: iommu@2a4000000 {
+			compatible = "apple,t6050-dart", "apple,t8110-dart";
+			reg = <0x2 0xa4000000 0x0 0x20000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1406 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#iommu-cells = <1>;
+			/* ADT dart-id 4, sid-count 256 */
+			status = "disabled";
+		};
+		apciec0: pcie@1c50000000 {
+			compatible = "apple,t6050-apciec";
+			reg = <0x1c 0x50000000 0x0 0x10000000>;	/* ADT reg[0]; +7 aux windows omitted */
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1405 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq 1405,1408..1412 — TODO verify AIC (U4) */
+			iommus = <&dart_apciec0 0>;
+			status = "disabled";
+		};
+		dart_apciec1: iommu@2ac000000 {
+			compatible = "apple,t6050-dart", "apple,t8110-dart";
+			reg = <0x2 0xac000000 0x0 0x20000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1438 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#iommu-cells = <1>;
+			/* ADT dart-id 6, sid-count 256 */
+			status = "disabled";
+		};
+		apciec1: pcie@1c60000000 {
+			compatible = "apple,t6050-apciec";
+			reg = <0x1c 0x60000000 0x0 0x10000000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1437 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq 1437,1440..1444 — TODO verify AIC (U4) */
+			iommus = <&dart_apciec1 0>;
+			status = "disabled";
+		};
+		dart_apciec2: iommu@384000000 {
+			compatible = "apple,t6050-dart", "apple,t8110-dart";
+			reg = <0x3 0x84000000 0x0 0x20000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1470 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#iommu-cells = <1>;
+			/* ADT dart-id 8, sid-count 256 */
+			status = "disabled";
+		};
+		apciec2: pcie@1c70000000 {
+			compatible = "apple,t6050-apciec";
+			reg = <0x1c 0x70000000 0x0 0x10000000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1469 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq 1469,1472..1476 — TODO verify AIC (U4) */
+			iommus = <&dart_apciec2 0>;
+			status = "disabled";
+		};
+
+		/*
+		 * ==== Internal PCIe (apcie,t6050) — hosts N1 Wi-Fi/BT ====
+		 * PARTIAL: apcie0 has 40 ADT reg windows; only the config/rc anchor
+		 * is emitted. Full config/rc/port/phy window map + ranges TODO.
+		 * N1 Centauri functions (106b:1901/1902/1903) live under this root;
+		 * they are described at board level (out-of-tree driver).
+		 */
+		dart_apcie0: iommu@410000000 {
+			compatible = "apple,t6050-dart", "apple,t8110-dart";
+			reg = <0x4 0x10000000 0x0 0x20000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1524 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#iommu-cells = <1>;
+			/* ADT dart-id 1, sid-count 19 */
+			status = "disabled";
+		};
+		dart_apcie1: iommu@411000000 {
+			compatible = "apple,t6050-dart", "apple,t8110-dart";
+			reg = <0x4 0x11000000 0x0 0x20000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1532 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#iommu-cells = <1>;
+			/* ADT dart-id 2, sid-count 19 */
+			status = "disabled";
+		};
+		/*
+		 * apcie0 root complex. PARTIAL: modelled as a controller stub, not
+		 * yet a full "device_type = pci" bridge — the config/rc/port/phy
+		 * ranges, iommu-map and MSI (ADT #msi-vectors 128, offset 1824)
+		 * require decoding all 40 ADT reg windows. The N1 Centauri Wi-Fi/BT
+		 * functions (106b:1901/1902/1903) attach under this root once the
+		 * bridge + per-function DART mapper is described (board-level).
+		 */
+		apcie0: pcie@1cb0000000 {
+			compatible = "apple,t6050-pcie", "apple,t6020-pcie";
+			reg = <0x1c 0xb0000000 0x0 0x10000000>,	/* ecam/config (ADT reg[0]) */
+			      <0x4 0x15044000 0x0 0x4000>;	/* rc */
+			reg-names = "config", "rc";
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1523 IRQ_TYPE_LEVEL_HIGH>, /* ADT irq 1523,1531,1539,1547,1558,1559 — TODO verify AIC (U4) */
+				     <AIC_IRQ 1531 IRQ_TYPE_LEVEL_HIGH>,
+				     <AIC_IRQ 1539 IRQ_TYPE_LEVEL_HIGH>,
+				     <AIC_IRQ 1547 IRQ_TYPE_LEVEL_HIGH>;
+			iommus = <&dart_apcie0 1>;
+			/* device_type="pci" + ranges + iommu-map + msi-ranges TODO */
+			status = "disabled";
+		};
+
+		/*
+		 * ======================================================
+		 *  Display: disp0 (+dcp) internal panel; dispext0..3 external
+		 * ======================================================
+		 */
+		dptx0_aux: dptx-aux@29c260000 {
+			compatible = "apple,t6050-dptx-aux", "apple,t8142-dptx-aux";
+			reg = <0x2 0x9c260000 0x0 0x4000>;
+			/* power-domains: pmgr power-gate 135 */
+			status = "disabled";
+		};
+		dptx1_aux: dptx-aux@29c264000 {
+			compatible = "apple,t6050-dptx-aux", "apple,t8142-dptx-aux";
+			reg = <0x2 0x9c264000 0x0 0x4000>;
+			/* power-domains: pmgr power-gate 136 */
+			status = "disabled";
+		};
+
+		dart_disp0: iommu@48a300000 {
+			compatible = "apple,t6050-dart", "apple,t8110-dart";
+			reg = <0x4 0x8a300000 0x0 0xc000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 990 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#iommu-cells = <1>;
+			/* ADT dart-id 18, sid-count 32 */
+			status = "disabled";
+		};
+		disp0: display-pipe@488000000 {
+			compatible = "apple,t6050-display-pipe", "apple,disp0-t605x";
+			reg = <0x4 0x88000000 0x0 0x4000000>,	/* disp fe */
+			      <0x4 0x8a240000 0x0 0x10000>,
+			      <0x4 0x8a3ac000 0x0 0x4000>,
+			      <0x4 0x8a800000 0x0 0x800000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 980 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq 980..990,1000 (13) — TODO verify AIC (U4) */
+			iommus = <&dart_disp0 0>;
+			/* power-domains: pmgr power-gates 608,607,605 */
+			status = "disabled";
+		};
+		dart_dcp: iommu@48a340000 {
+			compatible = "apple,t6050-dart", "apple,t8110-dart";
+			reg = <0x4 0x8a340000 0x0 0x20000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 990 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#iommu-cells = <1>;
+			/* ADT dart-id 19, sid-count 32 */
+			status = "disabled";
+		};
+		dcp: dcp@48ae00000 {
+			compatible = "apple,t6050-dcp", "apple,dcp";
+			reg = <0x4 0x8ae00000 0x0 0x88000>,	/* asc */
+			      <0x4 0x8a850000 0x0 0x4000>;	/* mbox/sram-ish */
+			reg-names = "coproc", "mbox";
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1044 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq 1043..1050 (8) — TODO verify AIC (U4) */
+			iommus = <&dart_dcp 0>;
+			/* power-domains: pmgr power-gate 606 */
+			status = "disabled";
+		};
+
+		dcpext0: dcp@2b2e00000 {
+			compatible = "apple,t6050-dcpext", "apple,dcpext";
+			reg = <0x2 0xb2e00000 0x0 0x88000>,
+			      <0x2 0xb2850000 0x0 0x4000>;
+			reg-names = "coproc", "mbox";
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1123 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq 1123..1130 (7) — TODO verify AIC (U4) */
+			iommus = <&dart_dcpext0 0>;
+			/* power-domains: pmgr power-gate 610 */
+			status = "disabled";
+		};
+		dart_dcpext0: iommu@2b2340000 {
+			compatible = "apple,t6050-dart", "apple,t8110-dart";
+			reg = <0x2 0xb2340000 0x0 0x20000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1070 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#iommu-cells = <1>;
+			/* ADT dart-id 21, sid-count 32 */
+			status = "disabled";
+		};
+		dcpext1: dcp@392e00000 {
+			compatible = "apple,t6050-dcpext", "apple,dcpext";
+			reg = <0x3 0x92e00000 0x0 0x88000>,
+			      <0x3 0x92850000 0x0 0x4000>;
+			reg-names = "coproc", "mbox";
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1195 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq 1195..1202 (7) — TODO verify AIC (U4) */
+			iommus = <&dart_dcpext1 0>;
+			/* power-domains: pmgr power-gate 611 */
+			status = "disabled";
+		};
+		dart_dcpext1: iommu@392340000 {
+			compatible = "apple,t6050-dart", "apple,t8110-dart";
+			reg = <0x3 0x92340000 0x0 0x20000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1142 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#iommu-cells = <1>;
+			/* ADT dart-id 24, sid-count 32 */
+			status = "disabled";
+		};
+		dcpext2: dcp@302e00000 {
+			compatible = "apple,t6050-dcpext", "apple,dcpext";
+			reg = <0x3 0x02e00000 0x0 0x88000>,
+			      <0x3 0x02850000 0x0 0x4000>;
+			reg-names = "coproc", "mbox";
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1267 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq 1267..1274 (8) — TODO verify AIC (U4) */
+			iommus = <&dart_dcpext2 0>;
+			/* power-domains: pmgr power-gate 612 */
+			status = "disabled";
+		};
+		dart_dcpext2: iommu@302340000 {
+			compatible = "apple,t6050-dart", "apple,t8110-dart";
+			reg = <0x3 0x02340000 0x0 0x20000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1214 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#iommu-cells = <1>;
+			/* ADT dart-id 27, sid-count 32 */
+			status = "disabled";
+		};
+		dcpext3: dcp@306e00000 {
+			compatible = "apple,t6050-dcpext", "apple,dcpext";
+			reg = <0x3 0x06e00000 0x0 0x88000>,
+			      <0x3 0x06850000 0x0 0x4000>;
+			reg-names = "coproc", "mbox";
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1339 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq 1339..1346 (8) — TODO verify AIC (U4) */
+			iommus = <&dart_dcpext3 0>;
+			/* power-domains: pmgr power-gate 613 */
+			status = "disabled";
+		};
+		dart_dcpext3: iommu@306340000 {
+			compatible = "apple,t6050-dart", "apple,t8110-dart";
+			reg = <0x3 0x06340000 0x0 0x20000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1286 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#iommu-cells = <1>;
+			/* ADT dart-id 30, sid-count 32 */
+			status = "disabled";
+		};
+
+		/*
+		 * ======================================================
+		 *  Audio: AOP + AUSS + admac-evolution (all disabled)
+		 * ======================================================
+		 * On T6050 the AP-visible MCA is gone; audio is behind
+		 * coprocessors. No amp unmute is possible without speakersafetyd.
+		 */
+		dart_aop: iommu@290fc0000 {
+			compatible = "apple,t6050-dart", "apple,t8110-dart";
+			reg = <0x2 0x90fc0000 0x0 0xc000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 616 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#iommu-cells = <1>;
+			/* ADT dart-id 10, sid-count 17. NOTE: reg[1] is GAPF/PS_PROT,
+			 * NOT a DAPF aperture (audit) — do not init DAPF here. */
+			status = "disabled";
+		};
+		aop: aop@290600000 {
+			compatible = "apple,t6050-aop", "apple,aop";
+			reg = <0x2 0x90600000 0x0 0x88000>,	/* asc */
+			      <0x2 0x90650000 0x0 0x4000>,
+			      <0x2 0x90c00000 0x0 0x2f0000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 578 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq 578..581 — TODO verify AIC (U4) */
+			iommus = <&dart_aop 0>;
+			status = "disabled";
+		};
+		auss_cpu0: aoss@395d08000 {
+			compatible = "apple,t6050-auss", "apple,mxwrap";
+			reg = <0x3 0x95d08000 0x0 0x4000>,
+			      <0x3 0x95d00000 0x0 0x4000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 2347 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq 2346..2349 — TODO verify AIC (U4) */
+			status = "disabled";
+		};
+		dart_auss0: iommu@395d60000 {
+			compatible = "apple,t6050-dart", "apple,t8110-dart";
+			reg = <0x3 0x95d60000 0x0 0xc000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 2343 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#iommu-cells = <1>;
+			/* ADT dart-id 17, sid-count 138 */
+			status = "disabled";
+		};
+		usb_auss0: usb@3953f0000 {
+			compatible = "apple,t6050-usb-auss";
+			reg = <0x3 0x953f0000 0x0 0x4600>;	/* ADT reg[0]; +9 aux windows omitted */
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 2339 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq 2339..2342 — TODO verify AIC (U4) */
+			iommus = <&dart_auss0 0>;
+			status = "disabled";
+		};
+		admac_base_ns: dma-controller@293800000 {
+			compatible = "apple,t6050-admac-evolution", "apple,admac-evolution";
+			reg = <0x2 0x93800000 0x0 0x34000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 637 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#dma-cells = <1>;
+			status = "disabled";
+		};
+		admac_leap_ns: dma-controller@293300000 {
+			compatible = "apple,t6050-admac-evolution", "apple,admac-evolution";
+			reg = <0x2 0x93300000 0x0 0x34000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 639 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#dma-cells = <1>;
+			status = "disabled";
+		};
+		admac_leap_s: dma-controller@293200000 {
+			compatible = "apple,t6050-admac-evolution", "apple,admac-evolution";
+			reg = <0x2 0x93200000 0x0 0x34000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 638 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#dma-cells = <1>;
+			status = "disabled";
+		};
+
+		/*
+		 * ======================================================
+		 *  Touch ID: SEP + its DART + exclave manager
+		 * ======================================================
+		 * The mesa biosensor is a child of spi2 (board dts). Keep disabled;
+		 * exclave-gated, passive-only.
+		 */
+		dart_sep: iommu@500b80000 {
+			compatible = "apple,t6050-dart", "apple,t8110-dart";
+			reg = <0x5 0x00b80000 0x0 0x20000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 543 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#iommu-cells = <1>;
+			/* ADT dart-id 13, sid-count 3 */
+			status = "disabled";
+		};
+		sep: sep@502600000 {
+			compatible = "apple,t6050-sep", "apple,sep";
+			reg = <0x5 0x02600000 0x0 0x88000>,
+			      <0x5 0x02050000 0x0 0x4000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 534 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq 533..536 — TODO verify AIC (U4) */
+			iommus = <&dart_sep 0>;
+			/* power-domains: pmgr power-gate 185 */
+			status = "disabled";
+		};
+		sep_esm: sep-manager@54267c000 {
+			/*
+			 * PARTIAL: ADT reg 0x5_4267c000 is OUTSIDE the /arm-io ranges
+			 * window (exclave carve-out); cannot translate via ranges.
+			 * Address is the raw ADT value; TODO confirm CPU-phys.
+			 */
+			compatible = "apple,t6050-sep-exclave-manager";
+			reg = <0x5 0x4267c000 0x0 0x4000>;	/* RAW ADT — TODO verify */
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 540 IRQ_TYPE_LEVEL_HIGH>, /* ADT irq 540,537 — TODO verify AIC (U4) */
+				     <AIC_IRQ 537 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+
+		/*
+		 * ======================================================
+		 *  ANE (Apple Neural Engine) — exclave-gated, descriptive only
+		 * ======================================================
+		 */
+		dart_ane0: iommu@509800000 {
+			compatible = "apple,t6050-dart", "apple,t8110-dart";
+			reg = <0x5 0x09800000 0x0 0xc000>,
+			      <0x5 0x09820000 0x0 0xc000>,
+			      <0x5 0x09840000 0x0 0xc000>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 955 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq — TODO verify AIC (U4) */
+			#iommu-cells = <1>;
+			/* ADT dart-id 40, sid-count 16 (SIDs 0-7,11); pmgr power-gate 568 */
+			status = "disabled";
+		};
+		ane0: ane@508000000 {
+			compatible = "apple,t6050-ane", "apple,ane-t8132exclave";
+			reg = <0x5 0x08000000 0x0 0x2000000>,	/* ANE core */
+			      <0x5 0x84000000 0x0 0x2000000>;	/* ANE exclave window */
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 954 IRQ_TYPE_LEVEL_HIGH>, /* ADT irq 954,967 — TODO verify AIC (U4) */
+				     <AIC_IRQ 967 IRQ_TYPE_LEVEL_HIGH>;
+			iommus = <&dart_ane0 0>;
+			/* power-domains: pmgr power-gates 569,664 (pmgr dev 0x238) */
+			status = "disabled";
+		};
+
+		/*
+		 * ==== NVMe/ANS + SMC (disabled; described for completeness) ====
+		 */
+		ans: nvme@419600000 {
+			compatible = "apple,t6050-ans", "apple,ans";
+			reg = <0x4 0x19600000 0x0 0x88000>,
+			      <0x4 0x19050000 0x0 0x4000>;
+			reg-names = "coproc", "mbox";
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 1348 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq 1347..1350,2338 — TODO verify AIC (U4) */
+			/* NVMe controller node + sart wiring TODO (internal storage,
+			 * separate stack per audit U17) */
+			status = "disabled";
+		};
+		smc: smc@28c600000 {
+			compatible = "apple,t6050-smc", "apple,t8103-smc";
+			reg = <0x2 0x8c600000 0x0 0x88000>,
+			      <0x2 0x8c050000 0x0 0x4000>,
+			      <0x2 0x8c810000 0x0 0x100>;
+			interrupt-parent = <&aic>;
+			interrupts = <AIC_IRQ 900 IRQ_TYPE_LEVEL_HIGH>; /* ADT irq 899..902 — TODO verify AIC (U4) */
+			/* Experimental: crashes ~1s into MTP interaction (audit U13). */
+			status = "disabled";
+		};
+	};
+};
