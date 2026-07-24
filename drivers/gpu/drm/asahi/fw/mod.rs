@@ -8,6 +8,7 @@ pub(crate) mod compute;
 pub(crate) mod event;
 pub(crate) mod fragment;
 pub(crate) mod initdata;
+pub(crate) mod initdata_g17;
 pub(crate) mod job;
 pub(crate) mod microseq;
 pub(crate) mod types;
