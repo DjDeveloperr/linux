@@ -23,6 +23,7 @@ mod microseq;
 mod mmu;
 mod object;
 mod pgtable;
+mod pgtable_g17;
 mod queue;
 mod regs;
 mod slotalloc;
