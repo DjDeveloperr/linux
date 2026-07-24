@@ -258,6 +258,23 @@ impl Resources {
                 // Clusters per die * num dies
                 ((id_counts_1 >> 8) & 0xff) * ((id_counts_1 >> 16) & 0xf)
             }
+            0xb => {
+                // G17 (M5 / T6050). The chip-identity aperture is the same
+                // ID_VERSION @0xd04000 (readChipInfo, aperture 0xD04000, family
+                // = reg>>24 == 0xb). Source:
+                // research/gpu/G17_HOST_DRIVER_SEQUENCE_2026-07-24.md §4a.
+                //
+                // FIXME(on-device): the G17 per-cluster core-mask register bank
+                // is NOT recovered — G17 is not G14X and 0xe01500 may be wrong.
+                // We reuse the G14X CORE_MASKS layout as a structural starting
+                // point; if the leftover-mask check below fires, dump the
+                // 0xd0xxxx / 0xe0xxxx ID block and adjust. The known-good facts
+                // are: 20 total cores, 2 clusters (10 cores/cluster).
+                core_mask_regs.push(self.sgx_read32::<CORE_MASKS_G14X>(), GFP_KERNEL)?;
+                core_mask_regs.push(self.sgx_read32::<{ CORE_MASKS_G14X + 4 }>(), GFP_KERNEL)?;
+                core_mask_regs.push(self.sgx_read32::<{ CORE_MASKS_G14X + 8 }>(), GFP_KERNEL)?;
+                ((id_counts_1 >> 8) & 0xff) * ((id_counts_1 >> 16) & 0xf)
+            }
             a => {
                 dev_err!(self.dev.as_ref(), "Unknown GPU generation {}\n", a);
                 return Err(ENODEV);
@@ -334,6 +351,9 @@ impl Resources {
                 4 => hw::GpuGen::G13,
                 5 => hw::GpuGen::G14,
                 6 => hw::GpuGen::G14, // G14X has a separate ID
+                // G17 (M5 / T6050): family nibble 0xb at ID_VERSION>>24.
+                // Source: G17_HOST_DRIVER_SEQUENCE_2026-07-24.md §4a.
+                0xb => hw::GpuGen::G17,
                 a => {
                     dev_err!(self.dev.as_ref(), "Unknown GPU generation {}\n", a);
                     return Err(ENODEV);

@@ -13,6 +13,7 @@ const MAX_POWERZONES: usize = 5;
 
 pub(crate) mod t600x;
 pub(crate) mod t602x;
+pub(crate) mod t6050;
 pub(crate) mod t8103;
 pub(crate) mod t8112;
 
@@ -22,6 +23,10 @@ pub(crate) mod t8112;
 pub(crate) enum GpuGen {
     G13 = 13,
     G14 = 14,
+    // G17 (Apple G17S/G17C, first shipped in M5 / T6050). The GPU MMU is the
+    // single-stage UAT (16 KiB pages, 42-bit PA); there is no separate DART.
+    // Source: research/gpu/G17_HOST_DRIVER_SEQUENCE_2026-07-24.md §4.
+    G17 = 17,
 }
 
 /// GPU variant enumeration. Note: Part of the UABI.
@@ -70,6 +75,21 @@ pub(crate) enum GpuCore {
     G14S = 16,
     G14C = 17,
     G14D = 18, // Split out, unlike G13D
+    // G17 core types (Apple G17S / G17C, M5 family). The G17 firmware ABI does
+    // NOT reuse the G13/G14 hwdata "gpu_core" field layout: the G17 init_data
+    // is the 3-level root/runtime_pointers/hw_globals grammar
+    // (research/gpu/G17_INITDATA_AND_BOOT_ORDER_2026-07-23.md), where the core
+    // identity is carried in the un-reverse-engineered hw_globals scalar span,
+    // not in this enum. These variants exist for driver-side identity only.
+    //
+    // FIXME(on-device): the exact firmware GpuCore discriminants for G17S/G17C
+    // are NOT recovered from the RE (readChipInfo @0xD04000 gives family=0xb and
+    // a variant nibble, not this firmware enum). The values below (19/20)
+    // continue the sequence as structural placeholders and must be confirmed
+    // against firmware / macOS `ioreg -l | grep gpu-core` before they are fed to
+    // any firmware structure. They are not yet consumed by the ported G17 path.
+    G17S = 19,
+    G17C = 20,
 }
 
 /// GPU revision ID. Note: Part of the firmware ABI.

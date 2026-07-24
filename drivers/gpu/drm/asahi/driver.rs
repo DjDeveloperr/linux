@@ -143,6 +143,12 @@ kernel::of_device_table!(
             of::DeviceId::new(c_str!("apple,agx-t6022")),
             &hw::t602x::HWCONFIG_T6022
         ),
+        // Apple M5 / T6050 (G17S). macOS ADT compatible is "gpu,t6050"; the
+        // Linux DT convention is "apple,agx-t6050". See hw::t6050.
+        (
+            of::DeviceId::new(c_str!("apple,agx-t6050")),
+            &hw::t6050::HWCONFIG_T6050
+        ),
     ]
 );
 
