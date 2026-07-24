@@ -22,6 +22,7 @@ use crate::{
     file,
     gem::AsahiObject,
     gpu,
+    gpu_g17,
     hw,
     regs, //
 };
@@ -208,6 +209,17 @@ impl platform::Driver for AsahiDriver {
             }
             (hw::GpuGen::G14, _, &[13, 5, 0]) => {
                 gpu::GpuManagerG14XV13_5::new(&drm.clone(), &res, cfg)? as Arc<dyn gpu::GpuManager>
+            }
+            // G17 (M5 / T6050) uses a distinct firmware ABI (RTKit 3514.0.7,
+            // 3-level init_data); dispatch to the dedicated G17 manager which
+            // performs the reverse-engineered bring-up sequence.
+            //
+            // FIXME(on-device): gate on the exact apple,firmware-compat triple
+            // for the g17s a0 firmware once it is known (the firmware negotiates
+            // interface version 0xc on EP0).
+            (hw::GpuGen::G17, _, _) => {
+                gpu_g17::GpuManagerG17::new(&drm.clone(), &res, cfg)?
+                    as Arc<dyn gpu::GpuManager>
             }
             _ => {
                 dev_info!(

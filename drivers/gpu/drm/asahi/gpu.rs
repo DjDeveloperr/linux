@@ -339,8 +339,8 @@ trait GpuManagerPriv {
 }
 
 pub(crate) struct RtkitObject {
-    vmap: shmem::VMap<gem::AsahiObject, u8>,
-    mapping: mmu::KernelMapping,
+    pub(crate) vmap: shmem::VMap<gem::AsahiObject, u8>,
+    pub(crate) mapping: mmu::KernelMapping,
 }
 
 impl rtkit::Buffer for RtkitObject {

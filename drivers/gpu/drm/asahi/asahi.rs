@@ -16,6 +16,7 @@ mod float;
 mod fw;
 mod gem;
 mod gpu;
+mod gpu_g17;
 mod hw;
 mod initdata;
 mod mem;
