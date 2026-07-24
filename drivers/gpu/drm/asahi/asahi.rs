@@ -27,6 +27,7 @@ mod pgtable_g17;
 mod queue;
 mod regs;
 mod slotalloc;
+mod transport_g17;
 mod util;
 #[cfg(CONFIG_DRM_ASAHI_MAPLE_TREE)]
 mod vm;
